@@ -1,11 +1,11 @@
 package me.mason.bruteforcer
 
+import com.github.masondkl.plinth.dispatchWrites
+import com.github.masondkl.plinth.server
 import kotlinx.coroutines.*
-import com.github.masondkl.plinth.*
 import java.net.InetSocketAddress
 import java.nio.channels.AsynchronousChannelGroup
 import java.security.SecureRandom
-import java.util.*
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
@@ -24,7 +24,6 @@ suspend fun main() {
     val dispatcher = service.asCoroutineDispatcher()
     val group = withContext(Dispatchers.IO) { AsynchronousChannelGroup.withThreadPool(service) }
     val taskId = AtomicInteger(0)
-    val salt = AtomicReference(ByteArray(32).also { SecureRandom().nextBytes(it) })
     val hash = AtomicReference(byteArrayOf())
     val result = AtomicReference(charArrayOf())
     val server = server(address, group, dispatcher) {
@@ -47,15 +46,19 @@ suspend fun main() {
                 }
             } catch (_: Exception) { }
         }
+        onDisconnect {
+            println("[$it] node disconnected")
+        }
     }
-    val scanner = Scanner(System.`in`)
     while(true) {
-        println("press any key to dispatch task to all nodes...")
-        scanner.nextLine()
+        println("press enter to dispatch task to all nodes...")
+        withContext(Dispatchers.IO) {
+            System.`in`.apply { read(); (0..<available()).forEach { _ -> read() } }
+        }
         val secret = CharArray(LENGTH) { VALID.random().toInt().toChar() }
         println("secret: ${String(secret)}")
         taskId.safeSet(TASK_EID++)
-        hash.safeSet(hash(salt.get(), secret)) { a, b -> a.contentEquals(b) }
+        hash.safeSet(hash(SALT, secret)) { a, b -> a.contentEquals(b) }
         result.safeSet(charArrayOf()) { a, b -> a.contentEquals(b) }
         val connections = server.cardinality()
         if (connections == 0) {
@@ -73,14 +76,11 @@ suspend fun main() {
                 else per.also { remainder -= per }
             val offsetCopy = offset
             val hashCopy = hash.get().copyOf()
-            val saltCopy = salt.get().copyOf()
             if (connection.channel.trySend {
                 packet(SRV_OUT_TASK) {
                     int(taskId.get())
                     int(hashCopy.size)
                     bytes(hashCopy)
-                    int(saltCopy.size)
-                    bytes(saltCopy)
                     int(offsetCopy)
                     int(count)
                 }

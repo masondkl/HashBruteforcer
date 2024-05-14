@@ -2,6 +2,7 @@ package me.mason.bruteforcer
 
 import kotlinx.coroutines.delay
 import com.github.masondkl.plinth.*
+import java.security.SecureRandom
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
@@ -9,18 +10,19 @@ import javax.crypto.SecretKeyFactory
 import javax.crypto.spec.PBEKeySpec
 import kotlin.time.Duration.Companion.minutes
 
-const val LENGTH = 3
+//TODO: make these program args and make a main to run both client or server
+const val LENGTH = 4
+val SALT = ByteArray(32).also { SecureRandom().nextBytes(it) }
 val VALID = (97..122).map { it.toByte() }.toByteArray()
 val TIMEOUT = 1.minutes
-val FACTORY: SecretKeyFactory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA512")
 
-fun hash(salt: ByteArray, array: CharArray): ByteArray {
-    val spec = PBEKeySpec(array, salt, 1024, 512)
-    return FACTORY.generateSecret(spec).encoded
+fun hash(salt: ByteArray, secret: CharArray): ByteArray {
+    val spec = PBEKeySpec(secret, salt, 1024, 512)
+    return SecretKeyFactory.getInstance("PBKDF2WithHmacSHA512").generateSecret(spec).encoded
 }
 
 suspend fun Write.packet(type: Byte, block: suspend Write.() -> (Unit) = { }) {
-    val measured = (1 + MeasuredWrite().apply { block() }.size)
+    val measured = (1 + MeasuredWrite().apply { block() }.size) //can fail if block performs a read
     val buffered = BufferedWrite(measured).apply {
         byte(type)
         block()

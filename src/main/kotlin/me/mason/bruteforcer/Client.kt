@@ -27,7 +27,7 @@ suspend fun main() {
     val progresses = ConcurrentHashMap<Int, Int>()
     CoroutineScope(Dispatchers.Default).launch {
         while(true) {
-            if (found.get().isEmpty()) print("[${task.get()}] ${
+            if (found.get().isEmpty()) print("task[${task.get()}] ${
                     progresses
                         .map { (k, v) -> k to "$v/16" }
                         .sortedBy { (k, _) -> k }
@@ -52,7 +52,6 @@ suspend fun main() {
                                 sent.safeSet(false)
                                 val taskId = int()
                                 val hash = bytes(int())
-                                val salt = bytes(int())
                                 val offset = int()
                                 val count = int()
                                 var prev = 0
@@ -81,7 +80,7 @@ suspend fun main() {
                                                 char /= VALID.size
                                             }
                                         }
-                                        val predictHash = hash(salt, predict)
+                                        val predictHash = hash(SALT, predict)
                                         equal = predictHash.contentEquals(hash)
                                         if (equal) break
                                     }
